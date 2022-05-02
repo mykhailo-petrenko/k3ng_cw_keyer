@@ -2209,7 +2209,7 @@ unsigned long automatic_sending_interruption_time = 0;
 
 unsigned long millis_rollover = 0;
 
-#if defined(FEATURE_TRAINING_COMMAND_LINE_INTERFACE)
+#if defined(FEATURE_TRAINING_COMMAND_LINE_INTERFACE) || defined(FEATURE_COMMAND_MODE_PROGRESSIVE_5_CHAR_ECHO_PRACTICE)
   byte check_serial_override = 0;
   #if defined(OPTION_WORDSWORTH_CZECH)
     #include "keyer_training_text_czech.h"
@@ -7962,27 +7962,16 @@ void command_mode() {
                     send_char(55,KEYER_NORMAL);send_char(51,KEYER_NORMAL);send_char(32,KEYER_NORMAL);send_char(69,KEYER_NORMAL);send_char(69,KEYER_NORMAL);
                     break;
 
-        #ifdef FEATURE_ALPHABET_SEND_PRACTICE // enhanced by Fred, VK2EFL
+        #ifdef FEATURE_COMMAND_MODE_PROGRESSIVE_5_CHAR_ECHO_PRACTICE 
           case 111:   // S - Alphabet Send Practice
-            #ifdef FEATURE_DISPLAY
-               if (LCD_COLUMNS < 9){
-                 lcd_center_print_timed("SendPrct", 0, default_display_msg_delay);
-               } else {
-                 lcd_center_print_timed("Send Practice", 0, default_display_msg_delay);
-                 if (LCD_ROWS > 1){
-                   lcd_center_print_timed("Cmd button to exit", 1, default_display_msg_delay);
-                 }
-               }
-            #endif
-            beep();
-            command_alphabet_send_practice();
+            command_progressive_5_char_echo_practice(true);
             stay_in_command_mode = 0;
             break;
         #endif                                //FEATURE_ALPHABET_SEND_PRACTICE
 
         #ifdef FEATURE_COMMAND_MODE_PROGRESSIVE_5_CHAR_ECHO_PRACTICE
           case 112:  // U - 5 Character Echo Practice
-            command_progressive_5_char_echo_practice();
+            command_progressive_5_char_echo_practice(false);
             stay_in_command_mode = 0;
             break;
         #endif //FEATURE_COMMAND_MODE_PROGRESSIVE_5_CHAR_PRACTICE
@@ -8160,7 +8149,12 @@ void command_display_memory(byte memory_number) {
 //-------------------------------------------------------------------------------------------------------
 
 #if defined(FEATURE_COMMAND_MODE_PROGRESSIVE_5_CHAR_ECHO_PRACTICE) && defined(FEATURE_COMMAND_MODE)
-void command_progressive_5_char_echo_practice() {
+const char SYMBOLS_LIST[] = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ.,=";
+const byte SYMBOLS_LIST_SIZE = 39;
+char generate_random_char() {
+  return SYMBOLS_LIST[random(0,  SYMBOLS_LIST_SIZE)];
+}
+void command_progressive_5_char_echo_practice(bool isDebug) {
 
   byte loop1 = 1;
   byte loop2 = 0;
@@ -8235,11 +8229,23 @@ void command_progressive_5_char_echo_practice() {
     //     cw_to_send_to_user = generate_callsign(practice_mode);
     //     break;
     //   case ECHO_PROGRESSIVE_5:
-        cw_to_send_to_user = (char)random(65,91);
-        cw_to_send_to_user.concat((char)random(65,91));
-        cw_to_send_to_user.concat((char)random(65,91));
-        cw_to_send_to_user.concat((char)random(65,91));
-        cw_to_send_to_user.concat((char)random(65,91));
+    if (!isDebug) {
+        // cw_to_send_to_user = (char)random(65,91);
+        // cw_to_send_to_user.concat((char)random(65,91));
+        // cw_to_send_to_user.concat((char)random(65,91));
+        // cw_to_send_to_user.concat((char)random(65,91));
+        // cw_to_send_to_user.concat((char)random(65,91));
+
+        int len = random(3, 5);
+
+        cw_to_send_to_user = generate_random_char();
+
+        while(--len > 0) {
+          cw_to_send_to_user.concat(generate_random_char());
+        }
+        
+
+    }
         progressive_step_counter = 1;
     //     break;
     //   case ECHO_2_CHAR_WORDS:
@@ -8262,11 +8268,13 @@ void command_progressive_5_char_echo_practice() {
     //     strcpy_P(word_buffer, (char*)pgm_read_word(&(name_table[random(0,name_size)])));
     //     cw_to_send_to_user = word_buffer;
     //     break;
-    //   case ECHO_QSO_WORDS:
+//       case ECHO_QSO_WORDS:
+    if (isDebug) {
     //     //word_index = random(0,qso_size);  // min parm is inclusive, max parm is exclusive
-    //     strcpy_P(word_buffer, (char*)pgm_read_word(&(qso_table[random(0,qso_size)])));
-    //     cw_to_send_to_user = word_buffer;
+         strcpy_P(word_buffer, (char*)pgm_read_word(&(qso_table[random(0,qso_size)])));
+         cw_to_send_to_user = word_buffer;
     //     break;
+    }
     // } //switch (practice_mode)
 
     loop2 = 1;
@@ -8355,7 +8363,7 @@ void command_progressive_5_char_echo_practice() {
       if (loop1 && loop2) {
         if (progressive_step_counter < 255) {                                             // we're in progressive mode
           if (user_sent_cw.substring(0,progressive_step_counter) == cw_to_send_to_user.substring(0,progressive_step_counter)) {    // we get here if the character entered is correct
-            if (progressive_step_counter < 6) {                                           // if the step counter is less than 6 then we have not finished the 5 character string
+            if (progressive_step_counter < (cw_to_send_to_user.length() + 1)) {                                           // if the step counter is less than 6 then we have not finished the 5 character string
               if (correct_answer_led) digitalWrite(correct_answer_led, HIGH);             // set the correct answer LED high
               if (wrong_answer_led) digitalWrite(wrong_answer_led, LOW);                  // clear the wrong answer LED
               beep();                                                                     // and beep
@@ -8367,7 +8375,7 @@ void command_progressive_5_char_echo_practice() {
               send_char(' ',0);
               progressive_step_counter++;
             }                                                                             // end if (progressive_step_counter < 6)
-            if (progressive_step_counter == 6) {                                          // we get here if the five character string is correct
+            if (progressive_step_counter == (cw_to_send_to_user.length() + 1)) {                                          // we get here if the five character string is correct
               loop2 = 0;
               if (correct_answer_led) digitalWrite(correct_answer_led, HIGH);             // set the correct answer LED high
               #ifdef FEATURE_DISPLAY

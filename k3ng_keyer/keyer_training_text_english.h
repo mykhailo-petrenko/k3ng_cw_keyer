@@ -215,9 +215,9 @@ const char qso_30[] PROGMEM = "HW?";
 const char qso_31[] PROGMEM = "HR";
 const char qso_32[] PROGMEM = "K";
 const char qso_33[] PROGMEM = "=";
-const char qso_34[] PROGMEM = "<";
-const char qso_35[] PROGMEM = "%";
-const char qso_36[] PROGMEM = ">";
+const char qso_34[] PROGMEM = "20936";
+const char qso_35[] PROGMEM = "589";
+const char qso_36[] PROGMEM = "469";
 const char qso_37[] PROGMEM = "LID";
 const char qso_38[] PROGMEM = "LOOP";
 const char qso_39[] PROGMEM = "NAME";
@@ -260,5 +260,3 @@ const char* const qso_table[] PROGMEM =
   qso_21,qso_22,qso_23,qso_24,qso_25,qso_26,qso_27,qso_28,qso_29,qso_30,qso_31,qso_32,qso_33,qso_34,qso_35,qso_36,qso_37,qso_38,qso_39,qso_40,
   qso_41,qso_42,qso_43,qso_44,qso_45,qso_46,qso_47,qso_48,qso_49,qso_50,qso_51,qso_52,qso_53,qso_54,qso_55,qso_56,qso_57,qso_58,qso_59,qso_60,
   qso_61,qso_62,qso_63,qso_64,qso_65,qso_66,qso_67,qso_68,qso_69,qso_70,qso_71,qso_72};
-
-
