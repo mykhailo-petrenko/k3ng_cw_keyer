@@ -1,5 +1,4 @@
 
-
 /*
 
  K3NG Arduino CW Keyer
@@ -1381,9 +1380,9 @@ If you offer a hardware kit using this software, show your appreciation by sendi
 */
 
 
-#define CODE_VERSION "2021.12.17.01"
+#define CODE_VERSION "2021.12.17.02"
 
-#define eeprom_magic_number 41               // you can change this number to have the unit re-initialize EEPROM
+#define eeprom_magic_number 43               // you can change this number to have the unit re-initialize EEPROM
 
 #include <stdio.h>
 #include "keyer_hardware.h"
@@ -7458,7 +7457,7 @@ void command_mode() {
         }
       #endif
 
-    }               //while (looping)
+    } //while (looping)
 // end new code
 
     #ifdef DEBUG_COMMAND_MODE
@@ -7962,16 +7961,16 @@ void command_mode() {
                     send_char(55,KEYER_NORMAL);send_char(51,KEYER_NORMAL);send_char(32,KEYER_NORMAL);send_char(69,KEYER_NORMAL);send_char(69,KEYER_NORMAL);
                     break;
 
-        #ifdef FEATURE_COMMAND_MODE_PROGRESSIVE_5_CHAR_ECHO_PRACTICE 
+        #ifdef FEATURE_ALPHABET_SEND_PRACTICE 
           case 111:   // S - Alphabet Send Practice
-            command_progressive_5_char_echo_practice(true);
+            command_alphabet_send_practice();
             stay_in_command_mode = 0;
             break;
-        #endif                                //FEATURE_ALPHABET_SEND_PRACTICE
+        #endif //FEATURE_ALPHABET_SEND_PRACTICE
 
         #ifdef FEATURE_COMMAND_MODE_PROGRESSIVE_5_CHAR_ECHO_PRACTICE
-          case 112:  // U - 5 Character Echo Practice
-            command_progressive_5_char_echo_practice(false);
+          case 112:  // U - Echo Practice
+            command_progressive_5_char_echo_practice_menu();
             stay_in_command_mode = 0;
             break;
         #endif //FEATURE_COMMAND_MODE_PROGRESSIVE_5_CHAR_PRACTICE
@@ -8149,16 +8148,152 @@ void command_display_memory(byte memory_number) {
 //-------------------------------------------------------------------------------------------------------
 
 #if defined(FEATURE_COMMAND_MODE_PROGRESSIVE_5_CHAR_ECHO_PRACTICE) && defined(FEATURE_COMMAND_MODE)
+
+long read_command_char() {
+  unsigned long last_element_time = 0;
+  long cw_char = 0;
+  byte paddle_hit = 0;
+  byte looping = 1;
+  byte button_that_was_pressed = 0;
+
+  while (looping) {
+    int8_t button_temp = button_array.Pressed();
+
+    #ifdef FEATURE_POTENTIOMETER
+      if (configuration.pot_activated) {
+        check_potentiometer();
+      }
+    #endif
+
+    #ifdef FEATURE_ROTARY_ENCODER
+      check_rotary_encoder();
+    #endif //FEATURE_ROTARY_ENCODER
+
+    check_paddles();
+
+    if (dit_buffer) {
+      sending_mode = MANUAL_SENDING;
+      send_dit();
+      dit_buffer = 0;
+      paddle_hit = 1;
+      cw_char = (cw_char * 10) + 1;
+      last_element_time = millis();
+    }
+
+    if (dah_buffer) {
+      sending_mode = MANUAL_SENDING;
+      send_dah();
+      dah_buffer = 0;
+      paddle_hit = 1;
+      cw_char = (cw_char * 10) + 2;
+      last_element_time = millis();
+    }
+    
+    if ((paddle_hit) && (millis() > (last_element_time + (float(600/configuration.wpm) * length_letterspace)))) {
+      #ifdef DEBUG_GET_CW_INPUT_FROM_USER
+        debug_serial_port->println(F("get_cw_input_from_user: hit length_letterspace"));
+      #endif
+      looping = 0;
+    }
+    
+    if (button_temp >=0 ){  // check for a button press
+      looping = 0;
+      cw_char = 9;
+      delay(50);
+      button_that_was_pressed = button_temp;
+      while (button_array.Held(button_that_was_pressed)) {}
+    }
+
+  }
+
+  return cw_char;
+}
+
+void command_progressive_5_char_echo_practice_menu() {
+  byte menu_loop = 1;
+  long command = 0;
+
+  while(menu_loop) {
+    send_char('E',KEYER_NORMAL);
+    send_char('C',KEYER_NORMAL);
+    send_char('H',KEYER_NORMAL);
+    send_char('O',KEYER_NORMAL);
+    send_char(' ',KEYER_NORMAL);
+    send_char('M',KEYER_NORMAL);
+    send_char('E',KEYER_NORMAL);
+    send_char('N',KEYER_NORMAL);
+    send_char('U',KEYER_NORMAL);
+    send_char(' ',KEYER_NORMAL);
+    send_char(' ',KEYER_NORMAL);
+    beep();
+    send_char(' ',KEYER_NORMAL);
+
+    // port_to_use->println(F("\r\n\nReceive / Transmit Echo Practice Menu\n"));
+    // port_to_use->println(F("I - International Callsigns"));
+    // port_to_use->println(F("U - US Callsigns"));
+    // port_to_use->println(F("E - European Callsigns"));
+    // port_to_use->println(F("C - Canadian Callsigns"));
+    // port_to_use->println(F("P - Progressive 5 Character Groups"));
+    // port_to_use->println(F("2 - Two Letter Words"));
+    // port_to_use->println(F("3 - Three Letter Words"));
+    // port_to_use->println(F("4 - Four Letter Words"));
+    // port_to_use->println(F("N - Names"));
+    // port_to_use->println(F("Q - QSO Words"));
+    // port_to_use->println(F("\nX - Exit\n"));
+
+    command = read_command_char();
+
+    char incoming_char = ' ';
+    incoming_char = convert_cw_number_to_ascii(command);
+    send_char(' ', KEYER_NORMAL);
+    send_char('R', KEYER_NORMAL);
+    send_char(' ', KEYER_NORMAL);
+    send_char(incoming_char, KEYER_NORMAL);
+    send_char(' ', KEYER_NORMAL);
+
+    switch(incoming_char) {
+      case 'X': 
+        menu_loop = 0; break;
+      case 'I': 
+        command_progressive_5_char_echo_practice(CALLSIGN_INTERNATIONAL); break;
+      case 'U': 
+        command_progressive_5_char_echo_practice(CALLSIGN_US); break;
+      case 'E': 
+        command_progressive_5_char_echo_practice(CALLSIGN_EUROPEAN); break;
+      case 'C': 
+        command_progressive_5_char_echo_practice(CALLSIGN_CANADA); break;
+      case 'P': 
+        command_progressive_5_char_echo_practice(ECHO_PROGRESSIVE_5); break;
+      case '2': 
+        command_progressive_5_char_echo_practice(ECHO_2_CHAR_WORDS); break;
+      case '3': 
+        command_progressive_5_char_echo_practice(ECHO_3_CHAR_WORDS); break;
+      case '4': 
+        command_progressive_5_char_echo_practice(ECHO_4_CHAR_WORDS); break;
+      case 'N': 
+        command_progressive_5_char_echo_practice(ECHO_NAMES); break;
+      case 'Q':
+        command_progressive_5_char_echo_practice(ECHO_QSO_WORDS); break;
+      default:
+        boop();
+    } //switch(incoming_char)
+
+  } // while(menu_loop)
+
+  // port_to_use->println(F("Exiting receive / transmit echo practice..."));
+}
+
 const char SYMBOLS_LIST[] = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ.,=";
 const byte SYMBOLS_LIST_SIZE = 39;
 char generate_random_char() {
   return SYMBOLS_LIST[random(0,  SYMBOLS_LIST_SIZE)];
 }
-void command_progressive_5_char_echo_practice(bool isDebug) {
 
+void command_progressive_5_char_echo_practice(byte practice_mode) {
   byte loop1 = 1;
   byte loop2 = 0;
   byte x = 0;
+  byte len = 0;
   byte user_send_loop = 0;
   String cw_to_send_to_user(10);
   char incoming_char = ' ';
@@ -8169,7 +8304,7 @@ void command_progressive_5_char_echo_practice(bool isDebug) {
   byte speed_mode_before = speed_mode;
   byte keyer_mode_before = configuration.keyer_mode;
   byte progressive_step_counter;
-  byte practice_mode;
+  short word_index;
   char word_buffer[10];
 
   speed_mode = SPEED_NORMAL;                 // put us in normal speed mode
@@ -8178,65 +8313,28 @@ void command_progressive_5_char_echo_practice(bool isDebug) {
   }
   randomSeed(millis());
 
-  #ifdef FEATURE_DISPLAY                   // enhanced by Fred, VK2EFL
-    lcd_clear();
-    if (LCD_COLUMNS > 17){
-      lcd_center_print_timed("Receive / Transmit", 0, default_display_msg_delay);
-      lcd_center_print_timed("5 Char Echo Practice", 1, default_display_msg_delay);
-      if (LCD_ROWS > 2){
-        lcd_center_print_timed("Cmd button to exit", 2, default_display_msg_delay);
-      }
-    } else {
-      if (LCD_COLUMNS < 9){
-        lcd_center_print_timed("RXTX 5Ch", 0, default_display_msg_delay);
-        if (LCD_ROWS > 1){
-          lcd_center_print_timed("EchoPrct", 1, default_display_msg_delay);
-        }
-      } else {
-        lcd_center_print_timed("RX / TX 5 Char", 0, default_display_msg_delay);
-        if (LCD_ROWS > 1){
-          lcd_center_print_timed("Echo Practice", 1, default_display_msg_delay);
-        }
-      }
-    }
-    service_display();
-  #else
-    send_char('E',0);
-    send_char('C',0);
-    send_char('H',0);
-    send_char('O',0);
-    send_char(' ',0);
-    send_char(' ',0);
-    send_char(' ',0);
-    beep();
-    beep();
-  #endif
+  send_char('E',KEYER_NORMAL);
+  send_char('C',KEYER_NORMAL);
+  send_char('H',KEYER_NORMAL);
+  send_char('O',KEYER_NORMAL);
+  send_char(' ',KEYER_NORMAL);
+  send_char(' ',KEYER_NORMAL);
+  beep();
+  send_char(' ',KEYER_NORMAL);
 
   while (loop1) {
-    // if (practice_mode_called == ECHO_MIXED){
-    //   practice_mode = random(ECHO_2_CHAR_WORDS,ECHO_QSO_WORDS+1);
-    // } else {
-    //   practice_mode = practice_mode_called;
-    // }
+    progressive_step_counter = 255;
 
-    // progressive_step_counter = 255;
-
-    // switch (practice_mode){
-    //   case CALLSIGN_INTERNATIONAL:
-    //   case CALLSIGN_US:
-    //   case CALLSIGN_EUROPEAN:
-    //   case CALLSIGN_CANADA:
-    //     cw_to_send_to_user = generate_callsign(practice_mode);
-    //     break;
-    //   case ECHO_PROGRESSIVE_5:
-    if (!isDebug) {
-        // cw_to_send_to_user = (char)random(65,91);
-        // cw_to_send_to_user.concat((char)random(65,91));
-        // cw_to_send_to_user.concat((char)random(65,91));
-        // cw_to_send_to_user.concat((char)random(65,91));
-        // cw_to_send_to_user.concat((char)random(65,91));
-
-        int len = random(3, 5);
+    switch (practice_mode) {
+      case CALLSIGN_INTERNATIONAL:
+      case CALLSIGN_US:
+      case CALLSIGN_EUROPEAN:
+      case CALLSIGN_CANADA:
+        cw_to_send_to_user = generate_callsign(practice_mode);
+        progressive_step_counter = 3;
+        break;
+      case ECHO_PROGRESSIVE_5:
+        len = 5;
 
         cw_to_send_to_user = generate_random_char();
 
@@ -8244,38 +8342,45 @@ void command_progressive_5_char_echo_practice(bool isDebug) {
           cw_to_send_to_user.concat(generate_random_char());
         }
         
-
-    }
         progressive_step_counter = 1;
-    //     break;
-    //   case ECHO_2_CHAR_WORDS:
-    //     //word_index = random(0,s2_size);  // min parm is inclusive, max parm is exclusive
-    //     strcpy_P(word_buffer, (char*)pgm_read_word(&(s2_table[random(0,s2_size)])));
-    //     cw_to_send_to_user = word_buffer;
-    //     break;
-    //   case ECHO_3_CHAR_WORDS:
-    //     //word_index = random(0,s3_size);  // min parm is inclusive, max parm is exclusive
-    //     strcpy_P(word_buffer, (char*)pgm_read_word(&(s3_table[random(0,s3_size)])));
-    //     cw_to_send_to_user = word_buffer;
-    //     break;
-    //   case ECHO_4_CHAR_WORDS:
-    //     //word_index = random(0,s4_size);  // min parm is inclusive, max parm is exclusive
-    //     strcpy_P(word_buffer, (char*)pgm_read_word(&(s4_table[random(0,s4_size)])));
-    //     cw_to_send_to_user = word_buffer;
-    //     break;
-    //   case ECHO_NAMES:
-    //     //word_index = random(0,name_size);  // min parm is inclusive, max parm is exclusive
-    //     strcpy_P(word_buffer, (char*)pgm_read_word(&(name_table[random(0,name_size)])));
-    //     cw_to_send_to_user = word_buffer;
-    //     break;
-//       case ECHO_QSO_WORDS:
-    if (isDebug) {
-    //     //word_index = random(0,qso_size);  // min parm is inclusive, max parm is exclusive
-         strcpy_P(word_buffer, (char*)pgm_read_word(&(qso_table[random(0,qso_size)])));
-         cw_to_send_to_user = word_buffer;
-    //     break;
+        break;
+      case ECHO_2_CHAR_WORDS:
+        //word_index = random(0,s2_size);  // min parm is inclusive, max parm is exclusive
+        strcpy_P(word_buffer, (char*)pgm_read_word(&(s2_table[random(0,s2_size)])));
+        cw_to_send_to_user = word_buffer;
+        break;
+      case ECHO_3_CHAR_WORDS:
+        //word_index = random(0,s3_size);  // min parm is inclusive, max parm is exclusive
+        strcpy_P(word_buffer, (char*)pgm_read_word(&(s3_table[random(0,s3_size)])));
+        cw_to_send_to_user = word_buffer;
+        break;
+      case ECHO_4_CHAR_WORDS:
+        //word_index = random(0,s4_size);  // min parm is inclusive, max parm is exclusive
+        strcpy_P(word_buffer, (char*)pgm_read_word(&(s4_table[random(0,s4_size)])));
+        cw_to_send_to_user = word_buffer;
+        break;
+      case ECHO_NAMES:
+        word_index = random(0,name_size);  // min parm is inclusive, max parm is exclusive
+        strcpy_P(word_buffer, (char*)pgm_read_word(&(name_table[word_index])));
+        cw_to_send_to_user = word_buffer;
+
+        break;
+      case ECHO_QSO_WORDS:        
+        //word_index = random(0,qso_size);  // min parm is inclusive, max parm is exclusive
+        strcpy_P(word_buffer, (char*)pgm_read_word(&(qso_table[random(0,qso_size)])));
+        cw_to_send_to_user = word_buffer;
+        break;
+      default:
+        boop();
+        boop();
+        break;
+    } //switch (practice_mode)
+
+    if (progressive_step_counter == 255) {
+      progressive_step_counter = cw_to_send_to_user.length();
     }
-    // } //switch (practice_mode)
+
+    delay(100);
 
     loop2 = 1;
     while (loop2) {
@@ -8358,7 +8463,7 @@ void command_progressive_5_char_echo_practice(bool isDebug) {
           if (wrong_answer_led) digitalWrite(wrong_answer_led, LOW);
         }
 
-      }                                                //while (user_send_loop)
+      } //while (user_send_loop)
 
       if (loop1 && loop2) {
         if (progressive_step_counter < 255) {                                             // we're in progressive mode
@@ -14129,7 +14234,7 @@ void serial_tune_command (PRIMARY_SERIAL_CLS * port_to_use) {
 
 //---------------------------------------------------------------------
 
-#ifdef FEATURE_TRAINING_COMMAND_LINE_INTERFACE
+#if defined(FEATURE_TRAINING_COMMAND_LINE_INTERFACE) || defined(FEATURE_COMMAND_MODE_PROGRESSIVE_5_CHAR_ECHO_PRACTICE)
 
 String generate_callsign(byte callsign_mode) {
 
@@ -18292,7 +18397,6 @@ void initialize_serial_ports(){
     #else
       debug_serial_port = primary_serial_port;
     #endif
-
   #endif //FEATURE_SERIAL
 
 
